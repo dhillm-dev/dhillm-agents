@@ -1,0 +1,21 @@
+from fastapi import FastAPI
+
+# Import sub-apps
+from api.healthz import app as healthz_app
+from api.last_decision import app as last_decision_app
+from api.run_once import app as run_once_app
+from api.retrain_now import app as retrain_now_app
+from api.correl_scan import app as correl_scan_app
+from api.diagnostics import app as diagnostics_app
+from api.learn_state import app as learn_state_app
+
+app = FastAPI()
+
+# Properly include routers from sub-apps
+app.include_router(healthz_app.router)
+app.include_router(last_decision_app.router)
+app.include_router(run_once_app.router)
+app.include_router(retrain_now_app.router)
+app.include_router(correl_scan_app.router)
+app.include_router(diagnostics_app.router)
+app.include_router(learn_state_app.router)

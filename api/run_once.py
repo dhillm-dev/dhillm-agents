@@ -1,15 +1,6 @@
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse
-import yfinance as yf, pandas as pd
 from global_agents.state import set_last_decision
-from global_agents.agents import ta_alpha, regime as regime_mod
-from global_agents.agents.vwap_revert import compute as vwap_compute
-from global_agents.agents.momentum_agent import compute as momentum_compute
-from global_agents.agents.flow_agent import compute as flow_compute
-from global_agents.agents.seasonal_agent import compute as seasonal_compute
-from global_agents.agents.macro_agent import compute as macro_compute
-from global_agents.agents.liquidity_agent import compute as liq_compute
-from global_agents.agents.ml_signal import compute as ml_compute
 from global_agents.core.fusion import adaptive_fuse
 from global_agents.agents import perf_tracker
 from global_agents.memory import market_memory
@@ -17,7 +8,9 @@ from global_agents.portfolio.execution import size, sl_tp, exposure_cap
 
 app = FastAPI()
 
-def fetch(symbol: str, period="60d", interval="1h") -> pd.DataFrame:
+def fetch(symbol: str, period="60d", interval="1h"):
+    import yfinance as yf
+    import pandas as pd
     df = yf.download(symbol, period=period, interval=interval, auto_adjust=True)
     if df.empty:
         raise RuntimeError(f"no data for {symbol}")
@@ -28,6 +21,15 @@ async def run_once(req: Request):
     body = await req.json() if "application/json" in req.headers.get("content-type", "") else {}
     symbol = body.get("symbol", "EURUSD=X")
     try:
+        from global_agents.agents import ta_alpha, regime as regime_mod
+        from global_agents.agents.vwap_revert import compute as vwap_compute
+        from global_agents.agents.momentum_agent import compute as momentum_compute
+        from global_agents.agents.flow_agent import compute as flow_compute
+        from global_agents.agents.seasonal_agent import compute as seasonal_compute
+        from global_agents.agents.macro_agent import compute as macro_compute
+        from global_agents.agents.liquidity_agent import compute as liq_compute
+        from global_agents.agents.ml_signal import compute as ml_compute
+
         df = fetch(symbol)
         ta_sig = ta_alpha.compute(df)
         reg = regime_mod.compute(df)
@@ -79,6 +81,15 @@ def run_once_get(
     risk_pct: float = Query(0.01),
 ):
     try:
+        from global_agents.agents import ta_alpha, regime as regime_mod
+        from global_agents.agents.vwap_revert import compute as vwap_compute
+        from global_agents.agents.momentum_agent import compute as momentum_compute
+        from global_agents.agents.flow_agent import compute as flow_compute
+        from global_agents.agents.seasonal_agent import compute as seasonal_compute
+        from global_agents.agents.macro_agent import compute as macro_compute
+        from global_agents.agents.liquidity_agent import compute as liq_compute
+        from global_agents.agents.ml_signal import compute as ml_compute
+
         df = fetch(symbol, period="60d", interval=tf)
         ta_sig = ta_alpha.compute(df)
         reg = regime_mod.compute(df)
