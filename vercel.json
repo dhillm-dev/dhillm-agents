@@ -11,6 +11,7 @@
     }
   ],
   "crons": [
-    { "path": "/api/run_once?symbol=EURUSD=X&tf=1h", "schedule": "*/15 * * * *" }
+    { "path": "/api/run_once?symbol=EURUSD=X&tf=1h", "schedule": "*/15 * * * *" },
+    { "path": "/api/retrain_now", "schedule": "0 */2 * * *" }
   ]
 }

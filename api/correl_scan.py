@@ -8,7 +8,8 @@ app = FastAPI()
 @app.get("/api/correl_scan")
 def scan(universe: List[str] = Query(DEFAULT), window: int = 24, k: int = 5):
     try:
-        df = fetch_close(universe, period="60d", interval="1h")
+        tickers = universe if isinstance(universe, list) else DEFAULT
+        df = fetch_close(tickers, period="60d", interval="1h")
         return JSONResponse({"ok": True, "window": window, "top_pairs": top_pairs(df, window, k)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)

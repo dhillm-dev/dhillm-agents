@@ -29,8 +29,27 @@ def fetch_close(tickers, period="60d", interval="1h"):
     return pd.DataFrame(out).dropna(how="all")
 
 def top_pairs(df: pd.DataFrame, window=24, k=5):
+    if df is None or df.empty or len(df.columns) < 2 or len(df) < window + 2:
+        return []
     corr = df.pct_change().rolling(window).corr()
-    snap = corr.iloc[-len(df.columns):].unstack().dropna()
+    try:
+        snap = corr.iloc[-len(df.columns):].unstack().dropna()
+        if not isinstance(snap.index, pd.MultiIndex) or snap.index.nlevels < 2:
+            raise ValueError("insufficient index levels for pair extraction")
+    except Exception:
+        # Fallback: static correlation over recent window
+        mat = df.pct_change().tail(window).corr().abs()
+        seen, picks = set(), []
+        for a in mat.columns:
+            for b in mat.columns:
+                if a == b:
+                    continue
+                key = tuple(sorted((a, b)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                picks.append((a, b, float(mat.loc[a, b])))
+        return sorted(picks, key=lambda x: x[2], reverse=True)[:k]
     snap = snap[
         snap.index.get_level_values(0) != snap.index.get_level_values(1)
     ]

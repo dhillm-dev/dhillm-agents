@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse
-import yfinance as yf, pandas as pd, numpy as np
+import yfinance as yf, pandas as pd
 from global_agents.state import set_last_decision
 from global_agents.agents import ta_alpha, regime as regime_mod
 from global_agents.agents.vwap_revert import compute as vwap_compute
@@ -9,10 +9,11 @@ from global_agents.agents.flow_agent import compute as flow_compute
 from global_agents.agents.seasonal_agent import compute as seasonal_compute
 from global_agents.agents.macro_agent import compute as macro_compute
 from global_agents.agents.liquidity_agent import compute as liq_compute
-from global_agents.agents.pair_revert import compute_pair as pair_compute
-from global_agents.agents.corr_matrix import fetch_close, DEFAULT
-from global_agents.core.fusion import fuse_v2
-from global_agents.core.portfolio import suggest_position
+from global_agents.agents.ml_signal import compute as ml_compute
+from global_agents.core.fusion import adaptive_fuse
+from global_agents.agents import perf_tracker
+from global_agents.memory import market_memory
+from global_agents.portfolio.execution import size, sl_tp, exposure_cap
 
 app = FastAPI()
 
@@ -30,60 +31,85 @@ async def run_once(req: Request):
         df = fetch(symbol)
         ta_sig = ta_alpha.compute(df)
         reg = regime_mod.compute(df)
-        regime_name = reg.get("regime", "normal")
         mom = momentum_compute(df)
         rev = vwap_compute(df)
-        flow = flow_compute(df)
-        season = seasonal_compute(df)
-        macro = macro_compute(symbol)
+        flo = flow_compute(df)
+        sea = seasonal_compute(df)
+        mac = macro_compute(symbol)
         liq = liq_compute(df)
-        universe = body.get("universe", DEFAULT)
-        try:
-            closes = fetch_close(universe, period="60d", interval="1h")
-            if symbol in closes.columns:
-                others = [c for c in closes.columns if c != symbol]
-                corr_series = closes.pct_change().rolling(24).corr().iloc[-len(closes.columns):][symbol].dropna()
-                max_corr = float(corr_series[others].abs().max()) if not corr_series.empty else 0.0
-                corr_penalty = min(0.5, max_corr * 0.2)
-                peer_df = None
-                top_peer = None
-                if others:
-                    top_peer = max(others, key=lambda t: float(abs(corr_series.get(t, 0.0))))
-                    if top_peer:
-                        peer_df = fetch(top_peer)
-                pair_rev = pair_compute(df, peer_df) if peer_df is not None else {"score": 0.0, "type": "pair_revert"}
-            else:
-                corr_penalty = 0.0
-                pair_rev = {"score": 0.0, "type": "pair_revert"}
-        except Exception:
-            corr_penalty = 0.0
-            pair_rev = {"score": 0.0, "type": "pair_revert"}
-
-        signals = {
-            "momentum": mom.get("score", 0.0),
-            "reversion": rev.get("score", 0.0),
-            "flow": flow.get("score", 0.0),
-            "seasonality": season.get("score", 0.0),
-            "macro": macro.get("score", 0.0),
-            "liquidity": liq.get("score", 0.0),
-        }
-        fused = fuse_v2(symbol, regime_name, signals, corr_penalty)
+        features = {"momentum": mom["score"], "reversion": rev["score"], "flow": flo["score"], "seasonality": sea["score"]}
+        ml = ml_compute(features)
+        signals = [
+            {"type": "ta", **ta_sig},
+            {"type": "momentum", **mom},
+            {"type": "reversion", **rev},
+            {"type": "flow", **flo},
+            {"type": "seasonality", **sea},
+            {"type": "macro", **mac},
+            {"type": "liquidity", **liq},
+            {"type": "ml", **ml},
+        ]
+        corr_penalty = 0.0
+        fused = adaptive_fuse(symbol, signals, reg, corr_penalty)
         price = float(df["Close"].iloc[-1])
-        sizing = suggest_position(symbol, price, fused["score"], fused.get("confidence", 0.0))
-        decision = {**fused, "position": sizing}
+        direction = fused["action"]
+        stop_pips = float(body.get("stop_pips", 30))
+        balance = float(body.get("balance", 10000))
+        risk_pct = float(body.get("risk_pct", 0.01))
+        vol = size(balance, risk_pct, stop_pips)
+        sl, tp = sl_tp(price, direction, stop_pips)
+        decision = {**fused, "sl": sl, "tp": tp, "size": vol}
+        # simulate a mock pnl update after candle close
+        pnl = +0.3 if decision["action"] == "BUY" else -0.1 if decision["action"] == "SELL" else 0.0
+        perf_tracker.log_trade("fusion", pnl=pnl, action=decision["action"], symbol=symbol)
+        if decision["action"] != "HOLD" and pnl > 0:
+            market_memory.remember({"symbol": symbol, "regime": reg.get("regime")}, pnl)
         set_last_decision(decision)
-        diagnostics = {
-            "ta": ta_sig,
-            "regime": reg,
-            "momentum": mom,
-            "reversion": rev,
-            "flow": flow,
-            "seasonality": season,
-            "macro": macro,
-            "liquidity": liq,
-            "pair_revert": pair_rev,
-            "corr_penalty": corr_penalty,
-        }
-        return JSONResponse({"ok": True, "decision": decision, "diagnostics": diagnostics})
+        return JSONResponse({"ok": True, "decision": decision})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/run_once")
+def run_once_get(
+    symbol: str = Query("EURUSD=X"),
+    tf: str = Query("1h"),
+    stop_pips: float = Query(30),
+    balance: float = Query(10000),
+    risk_pct: float = Query(0.01),
+):
+    try:
+        df = fetch(symbol, period="60d", interval=tf)
+        ta_sig = ta_alpha.compute(df)
+        reg = regime_mod.compute(df)
+        mom = momentum_compute(df)
+        rev = vwap_compute(df)
+        flo = flow_compute(df)
+        sea = seasonal_compute(df)
+        mac = macro_compute(symbol)
+        liq = liq_compute(df)
+        features = {"momentum": mom["score"], "reversion": rev["score"], "flow": flo["score"], "seasonality": sea["score"]}
+        ml = ml_compute(features)
+        signals = [
+            {"type": "ta", **ta_sig},
+            {"type": "momentum", **mom},
+            {"type": "reversion", **rev},
+            {"type": "flow", **flo},
+            {"type": "seasonality", **sea},
+            {"type": "macro", **mac},
+            {"type": "liquidity", **liq},
+            {"type": "ml", **ml},
+        ]
+        fused = adaptive_fuse(symbol, signals, reg, corr_penalty=0.0)
+        price = float(df["Close"].iloc[-1])
+        vol = size(balance, risk_pct, float(stop_pips))
+        sl, tp = sl_tp(price, fused["action"], float(stop_pips))
+        decision = {**fused, "sl": sl, "tp": tp, "size": vol}
+        pnl = +0.3 if decision["action"] == "BUY" else -0.1 if decision["action"] == "SELL" else 0.0
+        perf_tracker.log_trade("fusion", pnl=pnl, action=decision["action"], symbol=symbol)
+        if decision["action"] != "HOLD" and pnl > 0:
+            market_memory.remember({"symbol": symbol, "regime": reg.get("regime")}, pnl)
+        set_last_decision(decision)
+        return JSONResponse({"ok": True, "decision": decision})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
