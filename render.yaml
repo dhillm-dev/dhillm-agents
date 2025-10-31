@@ -8,8 +8,9 @@ services:
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/healthz
     envVars:
-      - key: API_BASE
-        value: https://global-agents-api.onrender.com
+      # Optional persistence (uncomment if/when you add Redis and its env var)
+      # - key: REDIS_URL
+      #   sync: false
       - key: UNIVERSE
         value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
       - key: TF
@@ -18,9 +19,6 @@ services:
         value: 20
       - key: HTTP_TIMEOUT
         value: 20
-      # Optional persistence
-      # - key: REDIS_URL
-      #   sync: false
 
   - type: worker
     name: global-agents-worker
@@ -30,11 +28,12 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python -m global_agents.worker.looper
     envVars:
-      - key: API_BASE
+      # Send only the host from the web service; worker builds full base URL.
+      - key: API_HOST
         fromService:
           name: global-agents-api
           type: web
-          property: url
+          property: host
       - key: UNIVERSE
         value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
       - key: TF
