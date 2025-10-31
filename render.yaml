@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: global-agents-api
+    env: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.healthz:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: API_BASE
+        value: https://global-agents-api.onrender.com
+      - key: UNIVERSE
+        value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
+      - key: TF
+        value: 1h
+      - key: COOLDOWN
+        value: 20
+      - key: HTTP_TIMEOUT
+        value: 20
+      # Optional persistence
+      # - key: REDIS_URL
+      #   sync: false
+
+  - type: worker
+    name: global-agents-worker
+    env: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m global_agents.worker.looper
+    envVars:
+      - key: API_BASE
+        fromService:
+          name: global-agents-api
+          type: web
+          property: url
+      - key: UNIVERSE
+        value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
+      - key: TF
+        value: 1h
+      - key: COOLDOWN
+        value: 20
+      - key: HTTP_TIMEOUT
+        value: 20
+      # - key: REDIS_URL
+      #   sync: false
