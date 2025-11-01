@@ -26,4 +26,5 @@ services:
       - key: HTTP_TIMEOUT
         value: 20
       - key: REDIS_URL
-        fromSecret: REDIS_URL
+        value: ""
+        sync: false
