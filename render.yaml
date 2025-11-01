@@ -6,7 +6,7 @@ services:
     region: frankfurt
     buildCommand: >
       pip install --upgrade pip wheel setuptools &&
-      pip install --only-binary=:all: numpy==1.26.4 pandas==2.2.2 &&
+      pip install --only-binary=:all: numpy==2.2.2 pandas==2.2.3 &&
       pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/healthz
@@ -30,7 +30,7 @@ services:
     region: frankfurt
     buildCommand: >
       pip install --upgrade pip wheel setuptools &&
-      pip install --only-binary=:all: numpy==1.26.4 pandas==2.2.2 &&
+      pip install --only-binary=:all: numpy==2.2.2 pandas==2.2.3 &&
       pip install -r requirements.txt
     startCommand: python -m global_agents.worker.looper
     envVars:
