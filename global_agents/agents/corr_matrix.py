@@ -1,23 +1,21 @@
 import pandas as pd
 from global_agents.utils.safe_download import safe_download
 
-# Default multi-asset universe
-DEFAULT = [
-    "EURUSD=X","GBPUSD=X","USDJPY=X",
-    "BTC-USD","ETH-USD",
-    "^GSPC","GLD","USO"
-]
+DEFAULT = ["EURUSD=X","GBPUSD=X","USDJPY=X","BTC-USD","ETH-USD","^GSPC","GLD","USO"]
 
 def fetch_close(tickers, period="60d", interval="1h"):
-    out = {}
+    series = []
     for t in tickers:
         try:
             df = safe_download(t, period=period, interval=interval)
-            out[t] = df["Close"]
+            if "Close" in df.columns:
+                series.append(df["Close"].rename(t))
+            elif df.shape[1] == 1:  # Binance fallback returns single Close column
+                series.append(df.iloc[:,0].rename(t))
         except Exception:
-            # skip silently; correl_scan should still work with remaining assets
-            pass
-    return pd.DataFrame(out).dropna(how="all")
+            # skip only this ticker; keep going
+            continue
+    return pd.concat(series, axis=1).dropna(how="all") if series else pd.DataFrame()
 
 def top_pairs(df: pd.DataFrame, window=24, k=5):
     if df is None or df.empty or len(df.columns) < 2 or len(df) < window + 2:

@@ -16,7 +16,10 @@ def fetch(symbol: str, period="60d", interval="1h") -> pd.DataFrame:
 
 @app.post("/api/run_once")
 async def run_once(req: Request):
-    body = await req.json() if "application/json" in req.headers.get("content-type","") else {}
+    try:
+        body = await req.json() if "application/json" in req.headers.get("content-type","") else {}
+    except Exception:
+        body = {}
     symbol = body.get("symbol","EURUSD=X")
     try:
         df = fetch(symbol)
