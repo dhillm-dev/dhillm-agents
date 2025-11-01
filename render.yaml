@@ -10,9 +10,9 @@ services:
     startCommand: >
       bash -lc '
       export API_HOST="http://127.0.0.1:${PORT}";
-      uvicorn api.main:app --host 0.0.0.0 --port ${PORT} &
-      sleep 12
-      python -m global_agents.worker.looper
+      # Run worker in background; keep uvicorn as main process
+      python -m global_agents.worker.looper &
+      exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT}
       '
     healthCheckPath: /api/healthz
     envVars:
