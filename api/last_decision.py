@@ -1,15 +1,30 @@
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from typing import Any, Dict, Optional
 from global_agents.state import get_last_decision, set_last_decision
 
-app = FastAPI()
+router = APIRouter()
 
-@app.get("/api/last_decision")
+@router.get("/api/last_decision")
 def read_last():
-    return {"last_decision": get_last_decision()}
+    return JSONResponse({"last_decision": get_last_decision()})
 
-@app.post("/api/last_decision")
-async def write_last(req: Request):
-    body = await req.json()
-    set_last_decision(body.get("decision"))
+@router.post("/api/last_decision")
+async def upsert_last(req: Request):
+    """
+    Body examples:
+      {"ok":true,"decision":{"action":"BUY","symbol":"EURUSD=X","volume":"0.02"}}
+      {"ok":true,"decision":null}  # clears
+    """
+    try:
+        body: Dict[str, Any] = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+
+    decision: Optional[Dict[str, Any]] = body.get("decision", None)
+    # light validation
+    if decision is not None and not isinstance(decision, dict):
+        return JSONResponse({"ok": False, "error": "decision must be object or null"}, status_code=400)
+
+    set_last_decision(decision)
     return JSONResponse({"ok": True})
