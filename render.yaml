@@ -4,16 +4,19 @@ services:
     env: python
     plan: free
     region: frankfurt
-    buildCommand: >
-      pip install --upgrade pip wheel setuptools &&
-      pip install --only-binary=:all: numpy==2.2.2 pandas==2.2.3 &&
+    buildCommand: |
+      pip install --upgrade pip wheel setuptools
+      pip install --only-binary=:all: numpy==2.2.2 pandas==2.2.3
       pip install -r requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    startCommand: >
+      bash -lc '
+      export API_HOST="http://127.0.0.1:${PORT}";
+      uvicorn api.main:app --host 0.0.0.0 --port ${PORT} &
+      sleep 12
+      python -m global_agents.worker.looper
+      '
     healthCheckPath: /api/healthz
     envVars:
-      # Optional persistence (uncomment if/when you add Redis and its env var)
-      # - key: REDIS_URL
-      #   sync: false
       - key: UNIVERSE
         value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
       - key: TF
@@ -22,31 +25,3 @@ services:
         value: 20
       - key: HTTP_TIMEOUT
         value: 20
-
-  - type: worker
-    name: global-agents-worker
-    env: python
-    plan: free
-    region: frankfurt
-    buildCommand: >
-      pip install --upgrade pip wheel setuptools &&
-      pip install --only-binary=:all: numpy==2.2.2 pandas==2.2.3 &&
-      pip install -r requirements.txt
-    startCommand: python -m global_agents.worker.looper
-    envVars:
-      # Send only the host from the web service; worker builds full base URL.
-      - key: API_HOST
-        fromService:
-          name: global-agents-api
-          type: web
-          property: host
-      - key: UNIVERSE
-        value: EURUSD=X,BTC-USD,ETH-USD,GBPUSD=X,XAUUSD=X
-      - key: TF
-        value: 1h
-      - key: COOLDOWN
-        value: 20
-      - key: HTTP_TIMEOUT
-        value: 20
-      # - key: REDIS_URL
-      #   sync: false
