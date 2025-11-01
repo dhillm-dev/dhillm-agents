@@ -9,7 +9,7 @@ services:
       pip install -r requirements.txt
     startCommand: >
       bash -lc '
-      export API_HOST="http://127.0.0.1:${PORT}";
+      export API_HOST="${API_HOST:-http://127.0.0.1:${PORT}}";
       # Run worker in background; keep uvicorn as main process
       python -m global_agents.worker.looper &
       exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT}
