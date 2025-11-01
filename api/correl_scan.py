@@ -10,6 +10,8 @@ def scan(universe: List[str] = Query(DEFAULT), window: int = 24, k: int = 5):
     try:
         tickers = universe if isinstance(universe, list) else DEFAULT
         df = fetch_close(tickers, period="60d", interval="1h")
+        if df.empty or df.shape[1] == 0:
+            return JSONResponse({"ok": False, "error": "no symbols fetched (rate-limit or empty responses)"}, status_code=502)
         return JSONResponse({"ok": True, "window": window, "top_pairs": top_pairs(df, window, k)})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)

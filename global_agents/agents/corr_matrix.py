@@ -1,5 +1,5 @@
 import pandas as pd
-from global_agents.utils.data import safe_download
+from global_agents.utils.safe_download import safe_download
 
 # Default multi-asset universe
 DEFAULT = [
@@ -12,7 +12,7 @@ def fetch_close(tickers, period="60d", interval="1h"):
     out = {}
     for t in tickers:
         try:
-            df = safe_download(t)
+            df = safe_download(t, period=period, interval=interval)
             out[t] = df["Close"]
         except Exception:
             # skip silently; correl_scan should still work with remaining assets
