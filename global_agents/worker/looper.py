@@ -11,10 +11,20 @@ HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "20"))
 
 def run_once(symbol: str) -> None:
     url = f"{API_HOST}/api/run_once"
+    payload = {"symbol": symbol} if symbol else None
     try:
-        r = requests.post(url, json={"symbol": symbol}, timeout=HTTP_TIMEOUT)
+        if payload is not None:
+            r = requests.post(url, json=payload, timeout=HTTP_TIMEOUT)
+        else:
+            # No body → avoid setting Content-Type; send minimal POST
+            r = requests.post(url, timeout=HTTP_TIMEOUT)
+        if r.status_code == 502:
+            # Upstream data source issue; log and move on (no immediate retry)
+            print(f"[run_once][data_source] {symbol} -> 502 {r.text[:160]}")
+            return
         print(f"[run_once] {symbol} -> {r.status_code} {r.text[:240]}")
     except Exception:
+        # Silence storms by logging concisely, keep loop healthy
         print(f"[run_once][ERROR] {symbol}")
         traceback.print_exc()
 

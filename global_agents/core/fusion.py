@@ -68,3 +68,12 @@ def adaptive_fuse(symbol: str, signals: List[Dict], regime: Dict, corr_penalty: 
         "regime": regime,
         "penalty": float(corr_penalty),
     }
+
+# Simple wrapper to match new run_once import style
+def fuse(symbol: str, ta_sig: Dict, regime: Dict, corr_penalty: float = 0.0) -> Dict:
+    """Fuse core signals into a single decision using adaptive weights.
+
+    Expects `ta_sig` to be a dict with a `score` and optional details.
+    """
+    signals = [{"type": "ta", **ta_sig}]
+    return adaptive_fuse(symbol, signals, regime, corr_penalty=corr_penalty)

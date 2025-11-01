@@ -1,4 +1,5 @@
-import pandas as pd, yfinance as yf
+import pandas as pd
+from global_agents.utils.data import safe_download
 
 # Default multi-asset universe
 DEFAULT = [
@@ -8,23 +9,13 @@ DEFAULT = [
 ]
 
 def fetch_close(tickers, period="60d", interval="1h"):
-    d = yf.download(
-        tickers,
-        period=period,
-        interval=interval,
-        group_by="ticker",
-        auto_adjust=True,
-        threads=True,
-    )
     out = {}
     for t in tickers:
         try:
-            out[t] = (
-                d[t]["Close"]
-                if isinstance(d.columns, pd.MultiIndex)
-                else d["Close"]
-            )
+            df = safe_download(t)
+            out[t] = df["Close"]
         except Exception:
+            # skip silently; correl_scan should still work with remaining assets
             pass
     return pd.DataFrame(out).dropna(how="all")
 

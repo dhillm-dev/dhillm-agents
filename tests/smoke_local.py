@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import pandas as pd, numpy as np
 
 from api.healthz import app as health_app
-from api.last_decision import app as last_app
+from api.main import app as last_app
 from api.run_once import app as run_app
 from api.correl_scan import app as corr_app
 
@@ -23,13 +23,13 @@ def test_last_decision_roundtrip():
 
 def test_run_once_mock(monkeypatch):
     import api.run_once as ro
-    def fake_download(symbol, period="60d", interval="1h", auto_adjust=True):
+    def fake_safe_download(symbol):
         idx = pd.date_range("2025-01-01", periods=120, freq="H")
         df = pd.DataFrame({
             "Open": 100, "High": 101, "Low": 99, "Close": np.linspace(100,110,120), "Volume": 1000
         }, index=idx)
         return df
-    ro.yf.download = fake_download
+    monkeypatch.setattr(ro, "safe_download", fake_safe_download)
     c = TestClient(run_app)
     r = c.post("/api/run_once", json={"symbol":"EURUSD=X"})
     assert r.status_code==200 and r.json().get("ok") is True
