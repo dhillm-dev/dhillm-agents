@@ -1,8 +1,22 @@
 import pandas as pd
-import ta
 
 
 def compute(df: pd.DataFrame):
+    # Lazy import ta; soft-fallback if unavailable
+    try:
+        import ta  # type: ignore
+    except Exception as ie:
+        # Neutral score if ta is missing
+        close = df["Close"]
+        return {
+            "rsi": float(50.0),
+            "ema_fast": float(close.iloc[-1]),
+            "ema_slow": float(close.iloc[-1]),
+            "macd": float(0.0),
+            "score": float(0.0),
+            "type": "momentum",
+            "error": f"ta unavailable: {ie}",
+        }
     close = df["Close"]
     rsi = ta.momentum.RSIIndicator(close, 14).rsi().iloc[-1]
     ema_fast = ta.trend.EMAIndicator(close, 9).ema_indicator().iloc[-1]

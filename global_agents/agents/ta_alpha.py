@@ -1,9 +1,13 @@
 import pandas as pd
-import ta
 
 def compute(df: pd.DataFrame) -> dict:
     """Compute RSI + MACD technical analysis signals."""
     try:
+        # Lazy import ta to avoid hard dependency; fallback if unavailable
+        try:
+            import ta  # type: ignore
+        except Exception as ie:
+            raise RuntimeError(f"ta library unavailable: {ie}")
         # Calculate RSI
         rsi = ta.momentum.RSIIndicator(df["Close"]).rsi().iloc[-1]
         
@@ -24,6 +28,7 @@ def compute(df: pd.DataFrame) -> dict:
             "macd_signal": "bullish" if macd_diff > 0 else "bearish"
         }
     except Exception as e:
+        # Soft fallback when ta not available or computation fails
         return {
             "rsi": 50.0,
             "macd": 0.0,

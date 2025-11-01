@@ -1,13 +1,19 @@
 import pandas as pd
-import ta
 
 def compute(df: pd.DataFrame) -> dict:
     """Compute ATR% regime detection."""
     try:
-        # Calculate ATR
-        atr = ta.volatility.AverageTrueRange(
-            df["High"], df["Low"], df["Close"]
-        ).average_true_range()
+        # Try ta-based ATR first
+        atr = None
+        try:
+            import ta  # type: ignore
+            atr = ta.volatility.AverageTrueRange(
+                df["High"], df["Low"], df["Close"]
+            ).average_true_range()
+        except Exception:
+            # Fallback: simple TR rolling mean
+            tr = (df["High"] - df["Low"]).abs()
+            atr = tr.rolling(14).mean()
         
         # Calculate ATR percentage
         atrp = float(atr.iloc[-1] / df["Close"].iloc[-1])
